@@ -1,55 +1,102 @@
+import { db } from '../db';
+import { categoriesTable } from '../db/schema';
 import { type CreateCategoryInput, type UpdateCategoryInput, type Category, type DeleteInput, type GetByIdInput } from '../schema';
+import { eq } from 'drizzle-orm';
 
 // Create a new category
 export async function createCategory(input: CreateCategoryInput): Promise<Category> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new category and persisting it in the database.
-    // Should insert into categoriesTable and return the created category with generated ID
-    return Promise.resolve({
-        id: 1, // Placeholder ID
+  try {
+    const result = await db.insert(categoriesTable)
+      .values({
         name: input.name,
         description: input.description || null,
         is_active: input.is_active ?? true,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Category);
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Category creation failed:', error);
+    throw error;
+  }
 }
 
 // Get all categories
 export async function getCategories(): Promise<Category[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all categories from the database.
-    // Should select all records from categoriesTable
-    return Promise.resolve([]);
+  try {
+    const result = await db.select()
+      .from(categoriesTable)
+      .execute();
+
+    return result;
+  } catch (error) {
+    console.error('Category fetch failed:', error);
+    throw error;
+  }
 }
 
 // Get category by ID
 export async function getCategoryById(input: GetByIdInput): Promise<Category | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching a specific category by ID from the database.
-    // Should select category by ID from categoriesTable, return null if not found
-    return Promise.resolve(null);
+  try {
+    const result = await db.select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.id, input.id))
+      .execute();
+
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error('Category fetch by ID failed:', error);
+    throw error;
+  }
 }
 
 // Update category
 export async function updateCategory(input: UpdateCategoryInput): Promise<Category> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating an existing category in the database.
-    // Should update the category record and return the updated category with updated_at timestamp
-    return Promise.resolve({
-        id: input.id,
-        name: input.name || 'Updated Category',
-        description: input.description || null,
-        is_active: input.is_active ?? true,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Category);
+  try {
+    const updateData: Partial<typeof categoriesTable.$inferInsert> = {};
+
+    if (input.name !== undefined) {
+      updateData.name = input.name;
+    }
+    if (input.description !== undefined) {
+      updateData.description = input.description;
+    }
+    if (input.is_active !== undefined) {
+      updateData.is_active = input.is_active;
+    }
+
+    // Always update the updated_at timestamp
+    updateData.updated_at = new Date();
+
+    const result = await db.update(categoriesTable)
+      .set(updateData)
+      .where(eq(categoriesTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Category with ID ${input.id} not found`);
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('Category update failed:', error);
+    throw error;
+  }
 }
 
 // Delete category
 export async function deleteCategory(input: DeleteInput): Promise<{ success: boolean }> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is deleting a category from the database.
-    // Should delete category by ID from categoriesTable and return success status
-    return Promise.resolve({ success: true });
+  try {
+    const result = await db.delete(categoriesTable)
+      .where(eq(categoriesTable.id, input.id))
+      .returning()
+      .execute();
+
+    return { success: result.length > 0 };
+  } catch (error) {
+    console.error('Category deletion failed:', error);
+    throw error;
+  }
 }

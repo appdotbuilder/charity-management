@@ -1,57 +1,145 @@
+import { db } from '../db';
+import { ordersTable, usersTable } from '../db/schema';
 import { type CreateOrderInput, type UpdateOrderInput, type Order, type DeleteInput, type GetByIdInput } from '../schema';
+import { eq } from 'drizzle-orm';
 
 // Create a new order
 export async function createOrder(input: CreateOrderInput): Promise<Order> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is creating a new order and persisting it in the database.
-    // Should insert into ordersTable and return the created order with generated ID
-    return Promise.resolve({
-        id: 1, // Placeholder ID
+  try {
+    // Verify that user exists before creating order
+    const existingUser = await db.select()
+      .from(usersTable)
+      .where(eq(usersTable.id, input.user_id))
+      .execute();
+
+    if (existingUser.length === 0) {
+      throw new Error(`User with id ${input.user_id} not found`);
+    }
+
+    // Insert order record
+    const result = await db.insert(ordersTable)
+      .values({
         user_id: input.user_id,
         status: input.status || 'pending',
-        total_amount: input.total_amount,
-        notes: input.notes || null,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Order);
+        total_amount: input.total_amount.toString(), // Convert number to string for numeric column
+        notes: input.notes || null
+      })
+      .returning()
+      .execute();
+
+    // Convert numeric fields back to numbers before returning
+    const order = result[0];
+    return {
+      ...order,
+      total_amount: parseFloat(order.total_amount) // Convert string back to number
+    };
+  } catch (error) {
+    console.error('Order creation failed:', error);
+    throw error;
+  }
 }
 
 // Get all orders
 export async function getOrders(): Promise<Order[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all orders from the database.
-    // Should select all records from ordersTable, optionally with user relation
-    return Promise.resolve([]);
+  try {
+    const results = await db.select()
+      .from(ordersTable)
+      .execute();
+
+    // Convert numeric fields back to numbers
+    return results.map(order => ({
+      ...order,
+      total_amount: parseFloat(order.total_amount)
+    }));
+  } catch (error) {
+    console.error('Failed to fetch orders:', error);
+    throw error;
+  }
 }
 
 // Get order by ID
 export async function getOrderById(input: GetByIdInput): Promise<Order | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching a specific order by ID from the database.
-    // Should select order by ID from ordersTable, return null if not found
-    return Promise.resolve(null);
+  try {
+    const results = await db.select()
+      .from(ordersTable)
+      .where(eq(ordersTable.id, input.id))
+      .execute();
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    // Convert numeric fields back to numbers
+    const order = results[0];
+    return {
+      ...order,
+      total_amount: parseFloat(order.total_amount)
+    };
+  } catch (error) {
+    console.error('Failed to fetch order by ID:', error);
+    throw error;
+  }
 }
 
 // Update order
 export async function updateOrder(input: UpdateOrderInput): Promise<Order> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is updating an existing order in the database.
-    // Should update the order record and return the updated order with updated_at timestamp
-    return Promise.resolve({
-        id: input.id,
-        user_id: input.user_id || 1,
-        status: input.status || 'pending',
-        total_amount: input.total_amount || 0,
-        notes: input.notes || null,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Order);
+  try {
+    // If user_id is being updated, verify the user exists
+    if (input.user_id !== undefined) {
+      const existingUser = await db.select()
+        .from(usersTable)
+        .where(eq(usersTable.id, input.user_id))
+        .execute();
+
+      if (existingUser.length === 0) {
+        throw new Error(`User with id ${input.user_id} not found`);
+      }
+    }
+
+    // Build update object, converting numeric fields to strings
+    const updateData: any = {
+      updated_at: new Date()
+    };
+
+    if (input.user_id !== undefined) updateData.user_id = input.user_id;
+    if (input.status !== undefined) updateData.status = input.status;
+    if (input.total_amount !== undefined) updateData.total_amount = input.total_amount.toString();
+    if (input.notes !== undefined) updateData.notes = input.notes;
+
+    // Update order record
+    const result = await db.update(ordersTable)
+      .set(updateData)
+      .where(eq(ordersTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Order with id ${input.id} not found`);
+    }
+
+    // Convert numeric fields back to numbers before returning
+    const order = result[0];
+    return {
+      ...order,
+      total_amount: parseFloat(order.total_amount)
+    };
+  } catch (error) {
+    console.error('Order update failed:', error);
+    throw error;
+  }
 }
 
 // Delete order
 export async function deleteOrder(input: DeleteInput): Promise<{ success: boolean }> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is deleting an order from the database.
-    // Should delete order by ID from ordersTable and return success status
-    return Promise.resolve({ success: true });
+  try {
+    const result = await db.delete(ordersTable)
+      .where(eq(ordersTable.id, input.id))
+      .returning()
+      .execute();
+
+    return { success: result.length > 0 };
+  } catch (error) {
+    console.error('Order deletion failed:', error);
+    throw error;
+  }
 }
